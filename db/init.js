@@ -1,6 +1,12 @@
 // Creates thedal.db (SQLite) and seeds it from db/lessons-data.js.
 // Run with: npm run seed  (also runs automatically before "npm start")
 // Safe to re-run — it upserts by slug.
+//
+// Note: search (routes/search.js) no longer uses this database at all —
+// it scores db/lessons-data.js directly in memory, which turned out to be
+// far more reliable than SQLite FTS5 for a dataset this size (see the
+// route's comments for why). This table still exists for /api/lessons/:slug
+// lookups and as groundwork for when crawled content gets added later.
 
 const Database = require('better-sqlite3');
 const path = require('path');
@@ -53,27 +59,6 @@ const insertMany = db.transaction((rows) => {
 });
 
 insertMany(lessons);
-
-// Full-text search index: lets search match individual words regardless of
-// order (so "c loop" finds "The for loop in C"), rank by relevance, and
-// match partial words via prefix search. Rebuilt from scratch every time
-// this runs, which is cheap at this table size and keeps things simple —
-// no triggers to keep in sync.
-db.exec(`
-CREATE VIRTUAL TABLE IF NOT EXISTS lessons_fts USING fts5(
-  slug UNINDEXED,
-  title,
-  keywords,
-  language,
-  category,
-  explanation
-);
-`);
-db.exec('DELETE FROM lessons_fts');
-db.exec(`
-INSERT INTO lessons_fts (slug, title, keywords, language, category, explanation)
-SELECT slug, title, keywords, language, category, explanation FROM lessons
-`);
 
 console.log(`Seeded ${lessons.length} lesson(s) into ${path.join(__dirname, 'thedal.db')}`);
 db.close();
