@@ -54,5 +54,26 @@ const insertMany = db.transaction((rows) => {
 
 insertMany(lessons);
 
+// Full-text search index: lets search match individual words regardless of
+// order (so "c loop" finds "The for loop in C"), rank by relevance, and
+// match partial words via prefix search. Rebuilt from scratch every time
+// this runs, which is cheap at this table size and keeps things simple —
+// no triggers to keep in sync.
+db.exec(`
+CREATE VIRTUAL TABLE IF NOT EXISTS lessons_fts USING fts5(
+  slug UNINDEXED,
+  title,
+  keywords,
+  language,
+  category,
+  explanation
+);
+`);
+db.exec('DELETE FROM lessons_fts');
+db.exec(`
+INSERT INTO lessons_fts (slug, title, keywords, language, category, explanation)
+SELECT slug, title, keywords, language, category, explanation FROM lessons
+`);
+
 console.log(`Seeded ${lessons.length} lesson(s) into ${path.join(__dirname, 'thedal.db')}`);
 db.close();
